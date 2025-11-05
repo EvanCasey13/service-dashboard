@@ -1,5 +1,6 @@
 <tr class="hidden-info" style="display: none;">
     <td colspan="9" width="100%">
+        {% if deployment.get('last_release_prod_MR') %}
         <div>
             PROD release MR:
             <a href="{{deployment.last_release_prod_MR.url}}" target="_blank" rel="noopener noreferrer">MR#{{
@@ -7,7 +8,8 @@
             {{ deployment.last_release_prod_MR.title }} ({{ deployment.last_release_prod_MR.author }})
             from {{ deployment.last_release_prod_MR.merged_at | format_datetime}}
         </div>
-        {% if deployment.stage_deployment_type == "manual" %}
+        {% endif %}
+        {% if deployment.get('last_release_stage_MR') and deployment.stage_deployment_type == "manual" %}
         <div>
             STAGE release MR: <a href="{{deployment.last_release_stage_MR.url}}" target="_blank"
                 rel="noopener noreferrer">MR#{{ deployment.last_release_stage_MR.url.split("/")[-1] }}</a>

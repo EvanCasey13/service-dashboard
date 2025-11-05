@@ -144,7 +144,9 @@ def get_stage_commit_style(deployment):
     """
     Returns the color attribute for stage commit.
     """
-    if deployment["commit_stage"] == deployment["commit_prod"]:
+    commit_stage = deployment.get("commit_stage")
+    commit_prod = deployment.get("commit_prod")
+    if commit_stage and commit_prod and commit_stage == commit_prod:
         return "style=color:green;"
     return ""
 
@@ -153,9 +155,13 @@ def get_default_branch_commit_style(deployment):
     """
     Returns the color attribute for default branch last commit.
     """
-    if deployment["commit_default_branch"] == deployment["commit_prod"]:
+    commit_default_branch = deployment.get("commit_default_branch")
+    commit_prod = deployment.get("commit_prod")
+    commit_stage = deployment.get("commit_stage")
+
+    if commit_default_branch and commit_prod and commit_default_branch == commit_prod:
         return "style=color:green;"
-    elif deployment["commit_default_branch"] == deployment["commit_stage"]:
+    elif commit_default_branch and commit_stage and commit_default_branch == commit_stage:
         return ""
     return "style=color:black;"
 
