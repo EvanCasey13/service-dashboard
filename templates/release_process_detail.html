@@ -36,13 +36,13 @@
                             </p>
                         </div>
                         <div class="col-md-6 text-end">
-                            <button class="btn btn-info" id="slack-message-btn">
+                            <button class="btn btn-sm btn-info" id="slack-message-btn">
                                 <i class="bi bi-chat-left-text me-1"></i>Generate Slack Message
                             </button>
-                            <a href="{{ url_for('release_process.list_processes') }}" class="btn btn-secondary">
+                            <a href="{{ url_for('release_process.list_processes') }}" class="btn btn-sm btn-secondary">
                                 <i class="bi bi-arrow-left me-1"></i>Back to List
                             </a>
-                            <button class="btn btn-danger" id="delete-process-btn">
+                            <button class="btn btn-sm btn-danger" id="delete-process-btn">
                                 <i class="bi bi-trash me-1"></i>Delete Process
                             </button>
                         </div>
@@ -98,7 +98,7 @@
                         <code>{{ process.commit_range.to_commit[:7] }}</code>
                     </p>
                     <a href="{% if process.steps.release_notes.data.release_notes_url %}{{ process.steps.release_notes.data.release_notes_url }}{% else %}{{ url_for('release_notes.generate', depl_name=process.deployment_name, up_to_pr=process.commit_range.to_commit) }}{% endif %}"
-                       class="btn btn-sm btn-primary" target="_blank">
+                       class="btn btn-sm btn-primary">
                         <i class="bi bi-file-text me-1"></i>View Release Notes
                     </a>
                 </div>
@@ -106,23 +106,19 @@
         </div>
     </div>
 
-    <!-- Step 2: JIRA Ticket (Optional) -->
+    <!-- Step 2: JIRA Ticket -->
     <div class="row mb-3">
         <div class="col">
-            <div class="card {% if process.steps.jira_ticket.status == 'completed' %}border-success{% elif not process.steps.jira_ticket.enabled %}border-secondary{% endif %}">
-                <div class="card-header {% if process.steps.jira_ticket.status == 'completed' %}bg-success text-white{% elif not process.steps.jira_ticket.enabled %}bg-secondary text-white{% else %}bg-light{% endif %}">
+            <div class="card {% if process.steps.jira_ticket.status == 'completed' %}border-success{% endif %}">
+                <div class="card-header {% if process.steps.jira_ticket.status == 'completed' %}bg-success text-white{% else %}bg-light{% endif %}">
                     <h5 class="mb-0">
                         Step 2: Create JIRA Ticket
-                        <span class="badge bg-warning text-dark">Optional</span>
                         {% if process.steps.jira_ticket.status == 'completed' %} ✅
-                        {% elif not process.steps.jira_ticket.enabled %} (Skipped)
                         {% else %} ⏳{% endif %}
                     </h5>
                 </div>
                 <div class="card-body">
-                    {% if not process.steps.jira_ticket.enabled %}
-                        <p class="text-muted mb-0">This step is disabled for this process.</p>
-                    {% elif process.steps.jira_ticket.status == 'completed' %}
+                    {% if process.steps.jira_ticket.status == 'completed' %}
                         <p class="mb-2">
                             <i class="bi bi-check-circle text-success me-2"></i>
                             Completed: {{ process.steps.jira_ticket.timestamp[:19].replace('T', ' ') if process.steps.jira_ticket.timestamp else 'N/A' }}
@@ -153,13 +149,13 @@
                                 <i class="bi bi-lightbulb me-2"></i>
                                 <strong>Quick Action:</strong> You can create the JIRA ticket directly from here.
                             </div>
-                            <button class="btn btn-success me-2" id="create-jira-ticket-btn"
+                            <button class="btn btn-sm btn-success me-2" id="create-jira-ticket-btn"
                                     data-repo-name="{{ repo_name }}"
                                     data-process-id="{{ process.process_id }}">
                                 <i class="bi bi-ticket me-1"></i>Create JIRA Ticket Now
                             </button>
                         {% endif %}
-                        <button class="btn btn-outline-secondary mark-step-complete" data-step="jira_ticket">
+                        <button class="btn btn-sm btn-outline-secondary mark-step-complete" data-step="jira_ticket">
                             <i class="bi bi-check me-1"></i>Mark as Complete (Manual)
                         </button>
                     {% endif %}
@@ -191,26 +187,28 @@
                         {% endif %}
                         {% if process.steps.google_doc.data.doc_url %}
                         <a href="{{ process.steps.google_doc.data.doc_url }}"
-                           class="btn btn-sm btn-primary" target="_blank">
+                           class="btn btn-sm btn-primary me-2" target="_blank">
                             <i class="bi bi-file-earmark-text me-1"></i>Open Google Doc
                         </a>
                         {% endif %}
+                        <button class="btn btn-outline-warning btn-sm mark-step-incomplete" data-step="google_doc">
+                            <i class="bi bi-x-circle me-1"></i>Unmark as Complete
+                        </button>
                     {% else %}
                         <p class="mb-2">Create a Google Doc with the release notes.</p>
                         <div class="alert alert-success small mb-3">
                             <i class="bi bi-check-circle me-2"></i>
                             <strong>Ready!</strong> Release notes are generated. Create the Google Doc with one click.
                         </div>
-                        <button class="btn btn-success me-2" id="create-google-doc-btn"
+                        <button class="btn btn-sm btn-success me-2" id="create-google-doc-btn"
                                 data-deployment="{{ process.deployment_name }}"
                                 data-commit="{{ process.commit_range.to_commit }}"
                                 data-process-id="{{ process.process_id }}">
                             <i class="bi bi-file-earmark-text me-1"></i>Create Google Doc Now
                         </button>
-                        <a href="{{ url_for('release_notes.generate', depl_name=process.deployment_name, up_to_pr=process.commit_range.to_commit, process_id=process.process_id) }}"
-                           class="btn btn-outline-secondary btn-sm" target="_blank">
-                            <i class="bi bi-eye me-1"></i>Preview Release Notes
-                        </a>
+                        <button class="btn btn-sm btn-outline-secondary mark-step-complete" data-step="google_doc">
+                            <i class="bi bi-check me-1"></i>Mark as Complete (Manual)
+                        </button>
                     {% endif %}
                 </div>
             </div>
@@ -270,7 +268,7 @@
                         <button class="btn btn-outline-warning btn-sm mark-step-incomplete" data-step="app_interface_mr">
                             <i class="bi bi-x-circle me-1"></i>Unmark as Complete
                         </button>
-                        {% if process.steps.release_notes.status == 'completed' and deployment_data %}
+                        {% if process.steps.release_notes.status == 'completed' and deployment_data and deployment_data.commit_prod %}
                         <button type="button" class="btn btn-success btn-sm ms-2"
                                 id="createMrBtn"
                                 data-deployment-name="{{ process.deployment_name }}"
@@ -328,14 +326,15 @@
                             <button class="btn btn-info btn-sm me-2" id="check-mr-status-btn">
                                 <i class="bi bi-arrow-clockwise me-1"></i>Check MR Status
                             </button>
+                            <small id="mr-status-message" class="text-muted" style="display: none;"></small>
                         {% else %}
                             <p class="mb-2">Create an app-interface MR to update the deployment configuration.</p>
-                            {% if process.steps.release_notes.status == 'completed' and deployment_data %}
+                            {% if process.steps.release_notes.status == 'completed' and deployment_data and deployment_data.commit_prod %}
                                 <div class="alert alert-success small mb-3">
                                     <i class="bi bi-check-circle me-2"></i>
                                     <strong>Ready!</strong> Release notes are generated. Create the app-interface MR with one click.
                                 </div>
-                                <button type="button" class="btn btn-success me-2"
+                                <button type="button" class="btn btn-sm btn-success me-2"
                                         id="createMrBtn"
                                         data-deployment-name="{{ process.deployment_name }}"
                                         data-current-commit="{{ deployment_data.commit_prod }}"
@@ -346,7 +345,7 @@
                                 </button>
                             {% endif %}
                         {% endif %}
-                        <button class="btn btn-outline-secondary mark-step-complete" data-step="app_interface_mr">
+                        <button class="btn btn-sm btn-outline-secondary mark-step-complete" data-step="app_interface_mr">
                             <i class="bi bi-check me-1"></i>Mark as Complete (Manual)
                         </button>
                     {% endif %}
@@ -367,12 +366,26 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
+                <div class="mb-3">
+                    <label for="reviewer-input" class="form-label">
+                        <i class="bi bi-person me-1"></i>Reviewer
+                    </label>
+                    <div class="input-group">
+                        <input type="text" class="form-control" id="reviewer-input"
+                               placeholder="Enter reviewer name (e.g., John Doe)"
+                               value="{{ process.metadata.reviewer if process.metadata and process.metadata.reviewer else 'reviewer' }}">
+                        <button type="button" class="btn btn-sm btn-outline-secondary" id="save-reviewer">
+                            <i class="bi bi-save me-1"></i>Save
+                        </button>
+                    </div>
+                    <small class="text-muted">This will be used as @reviewer in the Slack message.</small>
+                </div>
                 <p class="text-muted small mb-2">Copy and paste this message into Slack:</p>
                 <textarea id="slack-message-text" class="form-control" rows="6" readonly></textarea>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                <button type="button" class="btn btn-primary" id="copy-slack-message">
+                <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-sm btn-primary" id="copy-slack-message">
                     <i class="bi bi-clipboard me-1"></i>Copy to Clipboard
                 </button>
             </div>
@@ -465,8 +478,8 @@
                 </div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                <button type="button" class="btn btn-success" id="confirmCreateMr" style="display: none;">
+                <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-sm btn-success" id="confirmCreateMr" style="display: none;">
                     <i class="bi bi-git-merge me-2"></i>
                     Create MR
                 </button>
@@ -530,6 +543,57 @@ document.getElementById('copy-slack-message').addEventListener('click', function
     setTimeout(() => {
         this.innerHTML = '<i class="bi bi-clipboard me-1"></i>Copy to Clipboard';
     }, 2000);
+});
+
+// Save reviewer and regenerate message
+document.getElementById('save-reviewer').addEventListener('click', function() {
+    const reviewer = document.getElementById('reviewer-input').value.trim();
+
+    if (!reviewer) {
+        alert('Please enter a reviewer name');
+        return;
+    }
+
+    const btn = this;
+    const originalHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Saving...';
+
+    fetch(`/release_processes/${processId}/update_reviewer`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ reviewer: reviewer })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Regenerate Slack message with new reviewer
+            return fetch(`/release_processes/${processId}/slack_message`);
+        } else {
+            throw new Error(data.error || 'Failed to save reviewer');
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            document.getElementById('slack-message-text').value = data.message;
+            btn.innerHTML = '<i class="bi bi-check me-1"></i>Saved!';
+            setTimeout(() => {
+                btn.innerHTML = originalHtml;
+                btn.disabled = false;
+            }, 2000);
+        } else {
+            throw new Error(data.error || 'Failed to generate message');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Error: ' + error.message);
+        btn.innerHTML = originalHtml;
+        btn.disabled = false;
+    });
 });
 
 // Mark step as complete (no confirmation popup)
@@ -685,8 +749,33 @@ function setupJiraTicketCreation(buttonId) {
 setupJiraTicketCreation('create-jira-ticket-btn');
 setupJiraTicketCreation('create-jira-ticket-btn-alt');
 
+// Function to show status message next to button
+function showMrStatusMessage(message, isError = false) {
+    const messageEl = document.getElementById('mr-status-message');
+    if (messageEl) {
+        messageEl.textContent = message;
+        messageEl.className = isError ? 'text-danger' : 'text-success';
+        messageEl.style.display = 'inline';
+
+        // Auto-hide success messages after 3 seconds
+        if (!isError) {
+            setTimeout(() => {
+                messageEl.style.display = 'none';
+            }, 3000);
+        }
+    }
+}
+
+// Function to hide status message
+function hideMrStatusMessage() {
+    const messageEl = document.getElementById('mr-status-message');
+    if (messageEl) {
+        messageEl.style.display = 'none';
+    }
+}
+
 // Function to check MR status
-function checkMrStatus(showAlert = true) {
+function checkMrStatus() {
     return fetch(`/release_processes/${processId}/check_mr_status`, {
         method: 'POST',
         headers: {
@@ -696,34 +785,21 @@ function checkMrStatus(showAlert = true) {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            if (showAlert) {
-                // Show success message and reload
-                const statusDetails = data.status_details;
-                let message = 'Status updated!\n\n';
-                message += `✓ Branch Created: ${statusDetails.branch_created ? 'Yes' : 'No'}\n`;
-                message += `✓ MR Created: ${statusDetails.mr_created ? 'Yes' : 'No'}\n`;
-                message += `✓ MR Merged: ${statusDetails.mr_merged ? 'Yes' : 'No'}`;
-
-                alert(message);
-                window.location.reload();
-            } else {
-                // Silent reload if status changed
-                window.location.reload();
-            }
+            // Silent reload to show updated status
+            window.location.reload();
         } else {
-            if (showAlert) {
-                alert('Error checking MR status: ' + (data.error || 'Unknown error'));
+            // Check if this is a VPN error
+            if (data.error_type === 'vpn_required') {
+                showMrStatusMessage('⚠️ ' + data.error, true);
             } else {
-                console.error('Error checking MR status:', data.error);
+                showMrStatusMessage('Error: ' + (data.error || 'Unknown error'), true);
             }
         }
         return data;
     })
     .catch(error => {
         console.error('Error:', error);
-        if (showAlert) {
-            alert('Error checking MR status');
-        }
+        showMrStatusMessage('Error checking MR status. Please try again.', true);
         throw error;
     });
 }
@@ -734,17 +810,25 @@ if (checkMrStatusBtn) {
     checkMrStatusBtn.addEventListener('click', function() {
         const btn = this;
 
+        // Hide any previous error messages
+        hideMrStatusMessage();
+
         // Disable button and show loading
         btn.disabled = true;
         const originalContent = btn.innerHTML;
         btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Checking...';
 
-        // Call API to check MR status without alert (silent reload)
-        checkMrStatus(false).catch(() => {
-            // Re-enable button on error and show error message
+        // Call API to check MR status
+        checkMrStatus().then(data => {
+            // If there was an error (like VPN), re-enable the button
+            if (!data.success) {
+                btn.disabled = false;
+                btn.innerHTML = originalContent;
+            }
+        }).catch(() => {
+            // Re-enable button on error
             btn.disabled = false;
             btn.innerHTML = originalContent;
-            alert('Error checking MR status. Please try again.');
         });
     });
 }

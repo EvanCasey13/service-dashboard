@@ -1,45 +1,43 @@
 window.addEventListener('DOMContentLoaded', event => {
 
-  // Toggle the side navigation
+  // Toggle between full and compact sidebar
   const sidebarToggle = document.body.querySelector('#sidebarToggle');
-  if (sidebarToggle) {
+  const sidebarFull = document.getElementById('sidebar-wrapper-full');
+  const sidebarCompact = document.getElementById('sidebar-wrapper-compact');
+  const toggleIcon = document.getElementById('sidebarToggleIcon');
+
+  if (sidebarToggle && sidebarFull && sidebarCompact && toggleIcon) {
     // Apply stored sidebar state on page load
-    if (localStorage.getItem('sb|sidebar-toggle') === 'true') {
-      document.body.classList.toggle('sb-sidenav-toggled');
-      // Update icon to show correct direction
-      const icon = document.getElementById('sidebarToggleIcon');
-      if (icon) {
-        icon.className = 'bi bi-chevron-right';
-      }
+    const isCompactMode = localStorage.getItem('sb|sidebar-compact') === 'true';
+
+    // Sync body class with html class (html class was set in head)
+    if (isCompactMode) {
+      document.body.classList.add('sidebar-compact-mode');
+      toggleIcon.className = 'bi bi-layout-sidebar-inset-reverse';
     } else {
-      // Ensure icon shows correct direction on load
-      const icon = document.getElementById('sidebarToggleIcon');
-      if (icon) {
-        icon.className = 'bi bi-chevron-left';
-      }
+      document.body.classList.remove('sidebar-compact-mode');
+      toggleIcon.className = 'bi bi-layout-sidebar-inset';
     }
 
+    // Toggle between full and compact sidebars
     sidebarToggle.addEventListener('click', event => {
       event.preventDefault();
-      document.body.classList.toggle('sb-sidenav-toggled');
-      localStorage.setItem('sb|sidebar-toggle', document.body.classList.contains('sb-sidenav-toggled'));
-    });
-  };
 
-  // Side nav - arrow icon change
-  var toggleButton = document.getElementById("sidebarToggle");
-  var toggleIcon = document.getElementById("sidebarToggleIcon");
+      const isCurrentlyCompact = document.body.classList.contains('sidebar-compact-mode');
 
-  if (toggleButton && toggleIcon) {
-    toggleButton.addEventListener("click", function () {
-      // Update the arrow direction based on sidebar state
-      setTimeout(() => {
-        if (document.body.classList.contains('sb-sidenav-toggled')) {
-          toggleIcon.className = "bi bi-chevron-right";
-        } else {
-          toggleIcon.className = "bi bi-chevron-left";
-        }
-      }, 10);
+      if (isCurrentlyCompact) {
+        // Switch to full sidebar
+        toggleIcon.className = 'bi bi-layout-sidebar-inset';
+        document.documentElement.classList.remove('sidebar-compact-mode');
+        document.body.classList.remove('sidebar-compact-mode');
+        localStorage.setItem('sb|sidebar-compact', 'false');
+      } else {
+        // Switch to compact sidebar
+        toggleIcon.className = 'bi bi-layout-sidebar-inset-reverse';
+        document.documentElement.classList.add('sidebar-compact-mode');
+        document.body.classList.add('sidebar-compact-mode');
+        localStorage.setItem('sb|sidebar-compact', 'true');
+      }
     });
   }
 
@@ -201,6 +199,68 @@ function initializeCollapsibleMenus() {
         statisticsSubmenu.addEventListener('hidden.bs.collapse', function () {
             statisticsToggle.setAttribute('aria-expanded', 'false');
             localStorage.setItem('statisticsMenuExpanded', 'false');
+        });
+    }
+
+    // Deployments submenu
+    const deploymentsToggle = document.querySelector('.deployments-dropdown-toggle');
+    const deploymentsSubmenu = document.querySelector('#deploymentsSubmenu');
+
+    if (deploymentsToggle && deploymentsSubmenu) {
+        // Auto-expand if on Deployments pages or if previously expanded
+        const currentPath = window.location.pathname;
+        const isOnDeploymentsPage = currentPath.includes('/deployments') || currentPath.includes('/release_processes') || currentPath.includes('/backoffice-proxy');
+        const deploymentsExpanded = localStorage.getItem('deploymentsMenuExpanded') === 'true';
+
+        if (isOnDeploymentsPage || deploymentsExpanded) {
+            deploymentsSubmenu.classList.add('show');
+            deploymentsToggle.setAttribute('aria-expanded', 'true');
+            // Save state if we auto-expanded due to being on Deployments page
+            if (isOnDeploymentsPage) {
+                localStorage.setItem('deploymentsMenuExpanded', 'true');
+            }
+        }
+
+        // Handle Deployments submenu events
+        deploymentsSubmenu.addEventListener('shown.bs.collapse', function () {
+            deploymentsToggle.setAttribute('aria-expanded', 'true');
+            localStorage.setItem('deploymentsMenuExpanded', 'true');
+        });
+
+        deploymentsSubmenu.addEventListener('hidden.bs.collapse', function () {
+            deploymentsToggle.setAttribute('aria-expanded', 'false');
+            localStorage.setItem('deploymentsMenuExpanded', 'false');
+        });
+    }
+
+    // Pull Requests submenu
+    const pullRequestsToggle = document.querySelector('.pull-requests-dropdown-toggle');
+    const pullRequestsSubmenu = document.querySelector('#pullRequestsSubmenu');
+
+    if (pullRequestsToggle && pullRequestsSubmenu) {
+        // Auto-expand if on Pull Requests pages or if previously expanded
+        const currentPath = window.location.pathname;
+        const isOnPullRequestsPage = currentPath.includes('/pull-requests');
+        const pullRequestsExpanded = localStorage.getItem('pullRequestsMenuExpanded') === 'true';
+
+        if (isOnPullRequestsPage || pullRequestsExpanded) {
+            pullRequestsSubmenu.classList.add('show');
+            pullRequestsToggle.setAttribute('aria-expanded', 'true');
+            // Save state if we auto-expanded due to being on Pull Requests page
+            if (isOnPullRequestsPage) {
+                localStorage.setItem('pullRequestsMenuExpanded', 'true');
+            }
+        }
+
+        // Handle Pull Requests submenu events
+        pullRequestsSubmenu.addEventListener('shown.bs.collapse', function () {
+            pullRequestsToggle.setAttribute('aria-expanded', 'true');
+            localStorage.setItem('pullRequestsMenuExpanded', 'true');
+        });
+
+        pullRequestsSubmenu.addEventListener('hidden.bs.collapse', function () {
+            pullRequestsToggle.setAttribute('aria-expanded', 'false');
+            localStorage.setItem('pullRequestsMenuExpanded', 'false');
         });
     }
 }

@@ -1,7 +1,11 @@
 from flask import Flask
 
+import config
+
+# Initialize backup service early to restore backup state if needed
 from blueprints import (
     api_bp,
+    backups_bp,
     deployments_bp,
     enhance_data_bp,
     get_default_branch_commit_style,
@@ -12,6 +16,7 @@ from blueprints import (
     pull_requests_bp,
     release_notes_bp,
     release_process_bp,
+    settings_bp,
 )
 from utils.helpers import is_older_than_six_months
 from utils.template_filters import (
@@ -31,6 +36,7 @@ app.config.from_object("config")
 
 # Blueprint registration
 app.register_blueprint(api_bp, url_prefix="/api")
+app.register_blueprint(backups_bp)
 app.register_blueprint(enhance_data_bp)
 app.register_blueprint(overview_bp)
 app.register_blueprint(personal_stats_bp)
@@ -39,6 +45,13 @@ app.register_blueprint(deployments_bp, url_prefix="/deployments")
 app.register_blueprint(release_notes_bp, url_prefix="/release_notes")
 app.register_blueprint(jira_tickets_bp, url_prefix="/jira-tickets")
 app.register_blueprint(release_process_bp)
+app.register_blueprint(settings_bp)
+
+# Plugin registration
+if config.ENABLE_BACKOFFICE_PROXY_PLUGIN:
+    from plugins.backoffice_proxy_bp import backoffice_proxy_bp
+
+    app.register_blueprint(backoffice_proxy_bp)
 
 # Template filters registration
 app.jinja_env.filters["format_datetime"] = format_datetime
@@ -57,6 +70,11 @@ app.jinja_env.globals.update(
     get_default_branch_commit_style=get_default_branch_commit_style
 )
 app.jinja_env.globals.update(is_older_than_six_months=is_older_than_six_months)
+
+# Plugin configuration for templates
+app.jinja_env.globals.update(
+    ENABLE_BACKOFFICE_PROXY_PLUGIN=config.ENABLE_BACKOFFICE_PROXY_PLUGIN
+)
 
 if __name__ == "__main__":
     app.run()

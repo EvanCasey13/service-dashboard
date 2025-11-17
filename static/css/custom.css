@@ -66,9 +66,46 @@ tr.group:hover {
     background-color: rgba(0, 0, 0, 0.75) !important;
 }
 
+/* Ensure container expands properly */
+.container-fluid {
+    max-width: 100% !important;
+    padding-right: 15px;
+    padding-left: 15px;
+}
+
+/* DataTables width and layout */
+table.dataTable {
+    width: 100% !important;
+}
+
 table.dataTable th,
 table.dataTable td {
     text-align: left !important;
+}
+
+/* Consistent card header font sizes across all pages */
+.card-header {
+    font-size: 1rem !important;
+}
+
+.card-header strong {
+    font-size: 1rem !important;
+    font-weight: 600;
+}
+
+.card-header h1,
+.card-header h2,
+.card-header h3,
+.card-header h4,
+.card-header h5,
+.card-header h6 {
+    font-size: 1rem !important;
+    font-weight: 600;
+    margin: 0;
+}
+
+.dataTables_wrapper {
+    width: 100% !important;
 }
 
 /* ========== DARK MODE STYLES ========== */
@@ -139,7 +176,13 @@ html:not(.dark-mode) {
 #page-content-wrapper {
     min-width: 0 !important;
     width: 100% !important;
-    max-width: calc(100vw - 15rem) !important; /* Ensure content doesn't exceed available width */
+    /* Removed max-width constraint to allow datatables to expand fully */
+}
+
+/* Adjust page content width when in compact sidebar mode */
+html.sidebar-compact-mode #page-content-wrapper,
+body.sidebar-compact-mode #page-content-wrapper {
+    /* No max-width constraint needed - content will naturally fit */
 }
 
 /* Specific fix for release notes pages layout */
@@ -2371,7 +2414,9 @@ body #releaseNotes h2 {
 
 /* Group headers should be grey */
 .sidebar-nav-item.jira-dropdown-toggle,
-.sidebar-nav-item.app-interface-dropdown-toggle {
+.sidebar-nav-item.app-interface-dropdown-toggle,
+.sidebar-nav-item.deployments-dropdown-toggle,
+.sidebar-nav-item.pull-requests-dropdown-toggle {
     color: #495057 !important;
 }
 
@@ -2481,6 +2526,38 @@ body #releaseNotes h2 {
     transform: rotate(180deg);
 }
 
+/* Deployments collapsible menu styling */
+.deployments-dropdown-toggle {
+    position: relative;
+    display: flex !important;
+    align-items: center !important;
+}
+
+.deployments-chevron {
+    font-size: 0.9rem;
+    transition: transform 0.3s ease;
+}
+
+.deployments-dropdown-toggle[aria-expanded="true"] .deployments-chevron {
+    transform: rotate(180deg);
+}
+
+/* Pull Requests collapsible menu styling */
+.pull-requests-dropdown-toggle {
+    position: relative;
+    display: flex !important;
+    align-items: center !important;
+}
+
+.pull-requests-chevron {
+    font-size: 0.9rem;
+    transition: transform 0.3s ease;
+}
+
+.pull-requests-dropdown-toggle[aria-expanded="true"] .pull-requests-chevron {
+    transform: rotate(180deg);
+}
+
 .sidebar-nav-subitem {
     font-weight: 400;
     font-size: 0.9rem;
@@ -2533,7 +2610,9 @@ body #releaseNotes h2 {
 
 /* Dark mode group headers should be grey */
 :root.dark-mode .sidebar-nav-item.jira-dropdown-toggle,
-:root.dark-mode .sidebar-nav-item.app-interface-dropdown-toggle {
+:root.dark-mode .sidebar-nav-item.app-interface-dropdown-toggle,
+:root.dark-mode .sidebar-nav-item.deployments-dropdown-toggle,
+:root.dark-mode .sidebar-nav-item.pull-requests-dropdown-toggle {
     color: #adb5bd !important;
 }
 

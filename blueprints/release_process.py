@@ -101,6 +101,41 @@ def create_process():
         if not all([deployment_name, from_commit, to_commit]):
             return jsonify({"success": False, "error": "Missing required fields"}), 400
 
+        # If release_notes_data is missing or has 0 PRs, try to calculate it server-side
+        if not release_notes_data or not release_notes_data.get("pr_count"):
+            logger.info(f"Calculating PR count server-side for {deployment_name}")
+            try:
+                from blueprints.release_notes import get_deployment_data
+
+                deployment = get_deployment_data(deployment_name)
+                if deployment:
+                    # Count PRs between from_commit and to_commit
+                    prod_stage_pulls = deployment.get("prod_stage_pulls", [])
+
+                    # Filter PRs up to the to_commit
+                    prs_in_scope = []
+                    for pr in prod_stage_pulls:
+                        prs_in_scope.append(pr)
+                        if pr.get("merge_commit_sha") == to_commit:
+                            break
+
+                    pr_count = len(prs_in_scope)
+                    logger.info(
+                        f"Calculated {pr_count} PRs in scope for {deployment_name}"
+                    )
+
+                    if not release_notes_data:
+                        release_notes_data = {}
+                    release_notes_data["pr_count"] = pr_count
+                    release_notes_data["url"] = url_for(
+                        "release_notes.generate",
+                        depl_name=deployment_name,
+                        up_to_pr=to_commit,
+                        _external=True,
+                    )
+            except Exception as e:
+                logger.warning(f"Could not calculate PR count server-side: {e}")
+
         # Create process
         process = release_process_service.create_process(
             deployment_name=deployment_name,
@@ -163,11 +198,29 @@ def check_process_mr_status(process_id):
         if not process:
             return jsonify({"success": False, "error": "Process not found"}), 404
 
-        # Get the branch name from app_interface_mr step data
+        # Get the branch name and current status from app_interface_mr step data
         mr_step_data = (
             process.get("steps", {}).get("app_interface_mr", {}).get("data", {})
         )
         branch_name = mr_step_data.get("branch_name")
+        existing_mr_number = mr_step_data.get("mr_number")
+        current_status = (
+            process.get("steps", {}).get("app_interface_mr", {}).get("status")
+        )
+
+        # If step is already completed, don't reset it
+        if current_status == "completed":
+            logger.info(
+                f"Step already completed for process {process_id}, no check needed"
+            )
+            return jsonify(
+                {
+                    "success": True,
+                    "status_details": mr_step_data.get("status_details", {}),
+                    "step_status": "completed",
+                    "message": "MR already merged",
+                }
+            )
 
         if not branch_name:
             return jsonify(
@@ -181,9 +234,13 @@ def check_process_mr_status(process_id):
         from flask import current_app
 
         with current_app.test_client() as client:
+            request_data = {"branch_name": branch_name}
+            if existing_mr_number:
+                request_data["mr_number"] = existing_mr_number
+
             response = client.post(
                 f"/release_notes/{deployment_name}/check_mr_status",
-                json={"branch_name": branch_name},
+                json=request_data,
                 headers={"Content-Type": "application/json"},
             )
 
@@ -199,9 +256,17 @@ def check_process_mr_status(process_id):
             updated_data["status_details"] = status_details
 
             # If MR is found, add/update the MR URL and number
+            # CRITICAL: Only update MR data if we have new valid data
+            # Never overwrite existing MR data with empty/null values
             if status_details.get("mr_url"):
                 updated_data["mr_url"] = status_details["mr_url"]
                 updated_data["mr_number"] = status_details["mr_number"]
+            else:
+                # No new MR data found - preserve existing MR data if it exists
+                if mr_step_data.get("mr_url"):
+                    updated_data["mr_url"] = mr_step_data["mr_url"]
+                if mr_step_data.get("mr_number"):
+                    updated_data["mr_number"] = mr_step_data["mr_number"]
 
             # Update step status based on progress
             if status_details.get("mr_merged"):
@@ -211,21 +276,37 @@ def check_process_mr_status(process_id):
             elif status_details.get("branch_created"):
                 new_status = "in_progress"
             else:
-                # Branch no longer exists - reset to pending and clear branch data
-                new_status = "pending"
-                # Explicitly clear branch-related data so UI shows "Create MR" button again
-                updated_data = {
-                    "status_details": status_details,
-                    # Keep current_commit and new_commit for reference
-                    "current_commit": updated_data.get("current_commit"),
-                    "new_commit": updated_data.get("new_commit"),
-                    # Explicitly set these to None to clear them (update() merges, doesn't replace)
-                    "branch_name": None,
-                    "branch_url": None,
-                    "mr_creation_url": None,
-                    "mr_url": None,
-                    "mr_number": None,
-                }
+                # Branch no longer exists
+                # Check if we have MR data stored (either mr_url or mr_number)
+                # This is critical: once an MR is created, we should NEVER clear its data
+                # unless the user explicitly removes it
+                existing_mr_url = mr_step_data.get("mr_url")
+
+                if existing_mr_number or existing_mr_url:
+                    # MR was created but branch no longer exists
+                    # This likely means the MR was merged and the branch was deleted
+                    # Preserve all MR data and keep status as in_progress
+                    logger.info(
+                        f"Branch not found but MR was previously created (number: {existing_mr_number}, url: {existing_mr_url}) - preserving MR data"
+                    )
+                    new_status = "in_progress"
+                    # Keep ALL existing MR data - don't clear anything
+                else:
+                    # No MR was ever created - reset to pending and clear branch data
+                    new_status = "pending"
+                    # Explicitly clear branch-related data so UI shows "Create MR" button again
+                    updated_data = {
+                        "status_details": status_details,
+                        # Keep current_commit and new_commit for reference
+                        "current_commit": updated_data.get("current_commit"),
+                        "new_commit": updated_data.get("new_commit"),
+                        # Explicitly set these to None to clear them (update() merges, doesn't replace)
+                        "branch_name": None,
+                        "branch_url": None,
+                        "mr_creation_url": None,
+                        "mr_url": None,
+                        "mr_number": None,
+                    }
 
             # Update the step
             release_process_service.update_step(
@@ -268,6 +349,40 @@ def delete_process(process_id):
         ), 500
 
 
+@release_process_bp.route("/delete_all_active", methods=["POST"])
+def delete_all_active():
+    """Delete all active release processes."""
+    try:
+        active_processes = release_process_service.get_active_processes()
+        deleted_count = 0
+        failed_count = 0
+
+        for process in active_processes:
+            process_id = process.get("process_id")
+            if process_id:
+                success = release_process_service.delete_process(process_id)
+                if success:
+                    deleted_count += 1
+                else:
+                    failed_count += 1
+
+        logger.info(f"Deleted {deleted_count} active processes, {failed_count} failed")
+
+        if failed_count > 0:
+            return jsonify(
+                {
+                    "success": False,
+                    "error": f"Deleted {deleted_count} processes, but {failed_count} failed",
+                }
+            ), 500
+
+        return jsonify({"success": True, "deleted_count": deleted_count})
+
+    except Exception as e:
+        logger.error(f"Error deleting all active processes: {e}")
+        return jsonify({"success": False, "error": "An internal error occurred."}), 500
+
+
 @release_process_bp.route("/<process_id>/slack_message", methods=["GET"])
 def get_slack_message(process_id):
     """Generate Slack message for a process."""
@@ -281,6 +396,37 @@ def get_slack_message(process_id):
 
     except Exception as e:
         logger.error(f"Error generating Slack message for {process_id}: {e}")
+        return jsonify(
+            {"success": False, "error": "An internal error has occurred."}
+        ), 500
+
+
+@release_process_bp.route("/<process_id>/update_reviewer", methods=["POST"])
+def update_reviewer(process_id):
+    """Update the reviewer for a process."""
+    try:
+        data = request.get_json()
+        reviewer = data.get("reviewer", "").strip()
+
+        if not reviewer:
+            return jsonify({"success": False, "error": "Reviewer cannot be empty"}), 400
+
+        process = release_process_service.get_process(process_id)
+        if not process:
+            return jsonify({"success": False, "error": "Process not found"}), 404
+
+        # Update reviewer in metadata
+        if "metadata" not in process:
+            process["metadata"] = {}
+        process["metadata"]["reviewer"] = reviewer
+
+        # Save the process
+        release_process_service._save_process(process)
+
+        return jsonify({"success": True, "reviewer": reviewer})
+
+    except Exception as e:
+        logger.error(f"Error updating reviewer for process {process_id}: {e}")
         return jsonify(
             {"success": False, "error": "An internal error has occurred."}
         ), 500

@@ -1,4 +1,5 @@
 from .api import api_bp
+from .backups import backups_bp
 from .deployments import (
     deployments_bp,
     get_default_branch_commit_style,
@@ -11,9 +12,11 @@ from .personal_stats import personal_stats_bp
 from .pull_requests import pull_requests_bp
 from .release_notes import release_notes_bp
 from .release_process import release_process_bp
+from .settings import settings_bp
 
 __all__ = [
     "api_bp",
+    "backups_bp",
     "deployments_bp",
     "enhance_data_bp",
     "get_services_links",
@@ -25,4 +28,5 @@ __all__ = [
     "release_notes_bp",
     "jira_tickets_bp",
     "release_process_bp",
+    "settings_bp",
 ]
