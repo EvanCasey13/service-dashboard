@@ -44,6 +44,22 @@ class JiraAPI:
             "url": f"{JIRA_SERVER}/browse/{new_issue.key}",
         }
 
+    def get_security_levels(self, project_key):
+        """Get available security levels for a project."""
+        try:
+            security_levels = self.jira_api.project_issue_security_level_scheme(
+                project_key
+            )
+            levels = []
+            if hasattr(security_levels, "levels"):
+                for level in security_levels.levels:
+                    levels.append({"id": level.id, "name": level.name})
+            logger.info(f"Security levels for {project_key}: {levels}")
+            return levels
+        except Exception as e:
+            logger.error(f"Error getting security levels: {e}")
+            return []
+
     def get_open_tickets_assigned_to_me(self):
         """Get open JIRA tickets assigned to the current user (not closed or resolved)."""
         try:

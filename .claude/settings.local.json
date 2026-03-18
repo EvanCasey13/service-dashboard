@@ -2,7 +2,13 @@
   "permissions": {
     "allow": [
       "Bash(nul)",
-      "Bash(cat:*)"
+      "Bash(cat:*)",
+      "Bash(pip install:*)",
+      "Read(//mnt/c/Users/ecasey/**)",
+      "Bash(flask run:*)",
+      "Bash(rm -rf venv)",
+      "Bash(python3 -m venv venv)",
+      "Bash(source venv/bin/activate)"
     ],
     "deny": [],
     "ask": []
