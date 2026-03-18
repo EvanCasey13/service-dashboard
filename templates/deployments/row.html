@@ -45,6 +45,7 @@
     {% endif %}
 
     <td>
+        {% if deployment.commit_default_branch %}
         <code {{ get_default_branch_commit_style(deployment) }}>{{ deployment.commit_default_branch[:7] }}</code>
         <span id="{{ deployment_name }}-commit_default_branch" hidden>{{ deployment.commit_default_branch }}</span>
         <button type="button" class="btn btn-outline-primary btn-xs copy-clipboard-btn" style="padding: 2px 4px;"
@@ -52,11 +53,15 @@
             data-target="{{ deployment_name }}-commit_default_branch">
             <i class="bi bi-copy" style="font-size: 0.6rem;"></i>
         </button>
+        {% else %}
+        <span>-</span>
+        {% endif %}
         <span style="white-space: nowrap;">{{ deployment.default_branch }}</span>
     </td>
 
     <td>
         <div style="white-space: nowrap;">
+            {% if deployment.commit_stage %}
             <code {{ get_stage_commit_style(deployment) }}>{{ deployment.commit_stage[:7] }}</code>
             <span id="{{ deployment_name }}-commit-sha-stage" hidden>{{ deployment.commit_stage }}</span>
             <button type="button" class="btn btn-outline-primary btn-xs copy-clipboard-btn" style="padding: 2px 4px;"
@@ -64,6 +69,9 @@
                 data-target="{{ deployment_name }}-commit-sha-stage">
                 <i class="bi bi-copy" style="font-size: 0.6rem;"></i>
             </button>
+            {% else %}
+            <span>-</span>
+            {% endif %}
             <span>
                 {% if deployment.stage_deployment_type == "manual" %}
                 M
@@ -103,7 +111,11 @@
                         {{ days_without_prod_release }} day{% if days_without_prod_release != 1 %}s{% endif %}
                         </span>
                     {% else %}
-                        {% set days_without_stage_release = deployment.last_release_stage_MR.merged_at | days_since %}
+                        {% if deployment.last_release_stage_MR %}
+                            {% set days_without_stage_release = deployment.last_release_stage_MR.merged_at | days_since %}
+                        {% else %}
+                            {% set days_without_stage_release = none %}
+                        {% endif %}
                         {% set days_color = 'secondary' if days_without_prod_release < 7 and (days_without_stage_release is none or days_without_stage_release < 7) else 'success' %}
                         <span class="stat-number stat-{{ days_color }}" style="white-space: nowrap;"
                         title="Days without prod/stage release">
@@ -121,7 +133,7 @@
                 </span>
             {% endif %}
 
-            {% set prod_prs = deployment.prod_stage_pulls | length %}
+            {% set prod_prs = deployment.prod_stage_pulls | length if deployment.prod_stage_pulls else 0 %}
             {% set prs_color = 'secondary' if prod_prs == 0 else 'warning' %}
             {% if deployment.stage_deployment_type == "auto" %}
                 <span class="stat-number stat-{{ prs_color }}" style="white-space: nowrap;"
@@ -129,8 +141,8 @@
                 {{ prod_prs }} PR{% if prod_prs != 1 %}s{% endif %}
                 </span>
             {% else %}
-                {% set prod_prs = deployment.prod_default_pulls | length %}
-                {% set stage_prs = deployment.stage_default_pulls | length %}
+                {% set prod_prs = deployment.prod_default_pulls | length if deployment.prod_default_pulls else 0 %}
+                {% set stage_prs = deployment.stage_default_pulls | length if deployment.stage_default_pulls else 0 %}
                 {% set prs_color = 'secondary' if prod_prs == 0 and stage_prs == 0 else 'warning' %}
                 <span class="stat-number stat-{{ prs_color }}" style="white-space: nowrap;"
                 title="PRs waiting for prod/stage release">

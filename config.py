@@ -75,7 +75,8 @@ DEPLOYMENT_RENAME_LIST = rename_list_dict
 
 JIRA_PROJECT = os.environ.get("JIRA_PROJECT", "")
 JIRA_PERSONAL_ACCESS_TOKEN = os.environ.get("JIRA_PERSONAL_ACCESS_TOKEN", "")
-JIRA_SERVER = "https://issues.redhat.com"
+JIRA_EMAIL = os.environ.get("JIRA_EMAIL", "")
+JIRA_SERVER = "https://redhat.atlassian.net"
 
 # APP-INTERFACE CONFIG
 app_interface_users_env = os.environ.get("APP_INTERFACE_USERS", "")
