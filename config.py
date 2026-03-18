@@ -77,6 +77,7 @@ JIRA_PROJECT = os.environ.get("JIRA_PROJECT", "")
 JIRA_PERSONAL_ACCESS_TOKEN = os.environ.get("JIRA_PERSONAL_ACCESS_TOKEN", "")
 JIRA_EMAIL = os.environ.get("JIRA_EMAIL", "")
 JIRA_SERVER = "https://redhat.atlassian.net"
+JIRA_SECURITY_LEVEL_ID = os.environ.get("JIRA_SECURITY_LEVEL_ID", "")
 
 # APP-INTERFACE CONFIG
 app_interface_users_env = os.environ.get("APP_INTERFACE_USERS", "")

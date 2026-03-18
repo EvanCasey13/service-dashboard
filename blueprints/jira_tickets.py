@@ -336,15 +336,16 @@ def create_new_jira_ticket():
 
     process_id = data.get("process_id")  # Optional process ID for tracking
 
-    # Security ID 11697 = Red Hat Employee
     options = {
         "project": {"key": config.JIRA_PROJECT},
         "summary": f"[{repo_name}] prod release",
         "description": "",
         "issuetype": {"name": "Task"},
         "labels": ["platform-accessmanagement"],
-        "security": {"id": "11697"},
     }
+    # Add security level if configured (set JIRA_SECURITY_LEVEL_ID in .env)
+    if config.JIRA_SECURITY_LEVEL_ID:
+        options["security"] = {"id": config.JIRA_SECURITY_LEVEL_ID}
     jira_api = JiraAPI()
     new_issue = jira_api.create_jira_ticket(options)
     link = new_issue.get("url")
@@ -377,6 +378,20 @@ def clear_cache_endpoint():
     flash("JIRA user cache cleared successfully", "success")
     # Redirect back to the referring page or JIRA tickets page
     return redirect(request.referrer or url_for("jira_tickets.jira_open_tickets"))
+
+
+@jira_tickets_bp.route("/jira-security-levels")
+def get_security_levels():
+    """Get available security levels for the configured JIRA project."""
+    if not config.JIRA_PROJECT:
+        return jsonify({"error": "JIRA_PROJECT not configured"}), 400
+    jira_api = JiraAPI()
+    levels = jira_api.get_security_levels(config.JIRA_PROJECT)
+    return jsonify({
+        "project": config.JIRA_PROJECT,
+        "security_levels": levels,
+        "current_configured": config.JIRA_SECURITY_LEVEL_ID or "Not set",
+    })
 
 
 def get_jira_open_tickets(reload_data):
