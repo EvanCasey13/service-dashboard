@@ -12,13 +12,14 @@ logger = logging.getLogger(__name__)
 JIRA_SERVER = config.JIRA_SERVER
 TICKET_ID = "RHCLOUD-29391"
 JIRA_PERSONAL_ACCESS_TOKEN = config.JIRA_PERSONAL_ACCESS_TOKEN
+JIRA_EMAIL = config.JIRA_EMAIL
 
 
 class JiraAPI:
     def __init__(self):
         """Connection to the JIRA API."""
         options = {"server": JIRA_SERVER}
-        self.jira_api = JIRA(options, token_auth=JIRA_PERSONAL_ACCESS_TOKEN)
+        self.jira_api = JIRA(options, basic_auth=(JIRA_EMAIL, JIRA_PERSONAL_ACCESS_TOKEN))
         logger.info("Successfully connected to JIRA API.")
 
     def get_jira_ticket(self, ticket_id):

@@ -9,7 +9,7 @@
             from {{ deployment.last_release_prod_MR.merged_at | format_datetime}}
         </div>
         {% endif %}
-        {% if deployment.stage_deployment_type == "manual" %}
+        {% if deployment.stage_deployment_type == "manual" and deployment.last_release_stage_MR %}
         <div>
             STAGE release MR: <a href="{{deployment.last_release_stage_MR.url}}" target="_blank"
                 rel="noopener noreferrer">MR#{{ deployment.last_release_stage_MR.url.split("/")[-1] }}</a>

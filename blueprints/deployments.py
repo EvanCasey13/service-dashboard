@@ -75,6 +75,27 @@ def index():
     )
 
 
+def filter_ignored_deployments(deployments):
+    """
+    Filter out deployments that match items in DEPLOY_TEMPLATE_IGNORE_LIST.
+
+    :param deployments: Dictionary of deployments
+    :return: Filtered dictionary with ignored deployments removed
+    """
+    if not config.DEPLOY_TEMPLATE_IGNORE_LIST:
+        return deployments
+
+    filtered = {}
+    for deployment_name, deployment_data in deployments.items():
+        # Check if any ignore pattern matches this deployment name
+        if any(item in deployment_name for item in config.DEPLOY_TEMPLATE_IGNORE_LIST):
+            logger.debug(f"Filtering out deployment: {deployment_name}")
+            continue
+        filtered[deployment_name] = deployment_data
+
+    return filtered
+
+
 def get_all_deployments(reload_data=None):
     """
     Get all deployments data (from file or download new).
@@ -102,7 +123,8 @@ def get_all_deployments(reload_data=None):
             flash("Deployments data not updated", "warning")
             logger.error(err)
 
-    return load_json_data(config.DEPLOYMENTS_FILE)
+    deployments = load_json_data(config.DEPLOYMENTS_FILE)
+    return filter_ignored_deployments(deployments)
 
 
 def update_deployment(deployment_name):
