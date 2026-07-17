@@ -231,6 +231,100 @@ def create_deployment_mr(depl_name):
         ), 500
 
 
+@release_notes_bp.route("/<depl_name>/preview_revert_mr")
+def preview_revert_mr(depl_name):
+    """Preview revert MR details before creation."""
+    current_commit = request.args.get("current_commit")
+    revert_to_commit = request.args.get("revert_to_commit")
+
+    if not current_commit or not revert_to_commit:
+        return jsonify({"success": False, "error": "Missing commit parameters"}), 400
+
+    connectivity_result = check_gitlab_connectivity()
+    if not connectivity_result["gitlab_connected"]:
+        return jsonify(
+            {
+                "success": False,
+                "error": f"VPN Connection Required: Please connect to company VPN and try again. ({connectivity_result['gitlab_error']})",
+                "error_type": "vpn_required",
+            }
+        )
+
+    deployment_data = get_deployment_data(escape(depl_name))
+    if not deployment_data:
+        return jsonify({"success": False, "error": "Deployment not found"}), 404
+
+    try:
+        mr_preview = extract_deployment_mr_info(
+            depl_name, deployment_data, current_commit, revert_to_commit,
+            is_revert=True,
+        )
+
+        gitlab_status = check_gitlab_connectivity()
+        mr_preview.update(gitlab_status)
+
+        return jsonify({"success": True, "data": mr_preview})
+
+    except Exception:
+        logger.exception("Error while previewing revert MR")
+        return jsonify(
+            {"success": False, "error": "An internal error has occurred."}
+        ), 500
+
+
+@release_notes_bp.route("/<depl_name>/create_revert_mr", methods=["POST"])
+def create_revert_mr(depl_name):
+    """Create a revert MR in GitLab to roll back production."""
+    data = request.get_json()
+
+    if not data:
+        return jsonify({"success": False, "error": "No data provided"}), 400
+
+    current_commit = data.get("current_commit")
+    revert_to_commit = data.get("revert_to_commit")
+
+    if not current_commit or not revert_to_commit:
+        return jsonify({"success": False, "error": "Missing commit parameters"}), 400
+
+    deployment_data = get_deployment_data(escape(depl_name))
+    if not deployment_data:
+        return jsonify({"success": False, "error": "Deployment not found"}), 404
+
+    try:
+        mr_result = create_gitlab_deployment_mr(
+            depl_name,
+            deployment_data,
+            current_commit,
+            revert_to_commit,
+            is_revert=True,
+        )
+
+        mr_url = mr_result.get("mr_creation_url")
+        branch_name = mr_result.get("branch_name")
+        branch_url = mr_result.get("branch_url")
+
+        return jsonify(
+            {
+                "success": True,
+                "data": {
+                    "mr_url": mr_url,
+                    "branch_name": branch_name,
+                    "branch_url": branch_url,
+                    "message": "Revert branch created successfully! Please create the MR from the link.",
+                },
+            }
+        )
+
+    except Exception:
+        logger.exception("Failed to create revert MR")
+        return jsonify(
+            {
+                "success": False,
+                "error": "An internal error occurred creating the revert merge request.",
+            }
+        ), 500
+
+
 @release_notes_bp.route("/<depl_name>/check_mr_status", methods=["POST"])
 def check_mr_status(depl_name):
     """Check the status of an app-interface MR."""
@@ -624,7 +718,8 @@ def extract_google_drive_folder_id(url):
 
 
 def extract_deployment_mr_info(
-    depl_name, deployment_data, current_commit, new_commit, jira_ticket_url=None
+    depl_name, deployment_data, current_commit, new_commit, jira_ticket_url=None,
+    is_revert=False,
 ):
     """Extract and validate deployment MR information."""
 
@@ -640,7 +735,8 @@ def extract_deployment_mr_info(
     import re
 
     timestamp = int(time.time())
-    branch_name = f"{depl_name}-prod-{new_commit[:7]}-{timestamp}"
+    branch_prefix = "revert" if is_revert else "prod"
+    branch_name = f"{depl_name}-{branch_prefix}-{new_commit[:7]}-{timestamp}"
 
     # Extract JIRA ticket ID from URL if available
     jira_ticket_id = None
@@ -651,10 +747,11 @@ def extract_deployment_mr_info(
             jira_ticket_id = match.group(1)
 
     # Build MR title with optional JIRA ticket ID
+    action = f"Revert {depl_name.upper()} production to" if is_revert else f"Deploy {depl_name.upper()} to production -"
     if jira_ticket_id:
-        mr_title = f"[{jira_ticket_id}] Deploy {depl_name.upper()} to production - {new_commit[:7]}"
+        mr_title = f"[{jira_ticket_id}] {action} {new_commit[:7]}"
     else:
-        mr_title = f"Deploy {depl_name.upper()} to production - {new_commit[:7]}"
+        mr_title = f"{action} {new_commit[:7]}"
 
     # Step 3: Get deployment file paths
     app_interface_link = deployment_data.get("app_interface_link", "")
@@ -868,6 +965,7 @@ def create_gitlab_deployment_mr(
     new_commit,
     jira_ticket_url=None,
     google_doc_url=None,
+    is_revert=False,
 ):
     """Create deployment MR in GitLab app-interface repository."""
 
@@ -883,7 +981,8 @@ def create_gitlab_deployment_mr(
     import re
 
     timestamp = int(time.time())
-    branch_name = f"{depl_name}-prod-{new_commit[:7]}-{timestamp}"
+    branch_prefix = "revert" if is_revert else "prod"
+    branch_name = f"{depl_name}-{branch_prefix}-{new_commit[:7]}-{timestamp}"
 
     # Extract JIRA ticket ID from URL if available
     jira_ticket_id = None
@@ -894,10 +993,11 @@ def create_gitlab_deployment_mr(
             jira_ticket_id = match.group(1)
 
     # Build MR title with optional JIRA ticket ID
+    action = f"Revert {depl_name.upper()} production to" if is_revert else f"Deploy {depl_name.upper()} to production -"
     if jira_ticket_id:
-        mr_title = f"[{jira_ticket_id}] Deploy {depl_name.upper()} to production - {new_commit[:7]}"
+        mr_title = f"[{jira_ticket_id}] {action} {new_commit[:7]}"
     else:
-        mr_title = f"Deploy {depl_name.upper()} to production - {new_commit[:7]}"
+        mr_title = f"{action} {new_commit[:7]}"
 
     # Build commit message with optional links
     commit_message = mr_title  # Use the same title for commit message
@@ -969,9 +1069,9 @@ def create_gitlab_deployment_mr(
                 deploy_file_path = f"data/services/{depl_name}/{deploy_file}"
             logger.info(f"Deploy file path: {deploy_file_path}")
 
-            # Step 5: Get current file content from fork
-            logger.info("Step 5: Getting file content from fork...")
-            file_obj = fork_project.files.get(file_path=deploy_file_path, ref="master")
+            # Step 5: Get current file content from main repo (fork may be out of sync)
+            logger.info("Step 5: Getting file content from main repo...")
+            file_obj = main_project.files.get(file_path=deploy_file_path, ref="master")
             logger.info(f"File object type: {type(file_obj)}")
 
             logger.info("Step 5b: Decoding file content...")
@@ -1000,17 +1100,21 @@ def create_gitlab_deployment_mr(
             )
             logger.info(f"Updated content type: {type(updated_yaml_content)}")
             logger.info(f"Updated content length: {len(updated_yaml_content)} chars")
+            content_changed = current_yaml_content != updated_yaml_content
+            logger.info(f"Content actually changed: {content_changed}")
+            if not content_changed:
+                logger.warning(f"YAML replacement had no effect! current_commit='{current_commit[:12]}...' may not exist in the file")
 
             # Step 7: Create new branch in fork
             logger.info("Step 7: Creating new branch...")
             master_branch = fork_project.branches.get("master")
-            logger.info(f"Master branch commit: {master_branch.commit['id'][:8]}")
+            logger.info(f"Fork master commit: {master_branch.commit['id'][:8]}")
 
             try:
                 fork_project.branches.create(
                     {
                         "branch": branch_name,
-                        "ref": "master",  # Use branch name instead of commit ID
+                        "ref": "master",
                     }
                 )
                 logger.info(f"Created new branch in fork: {branch_name}")

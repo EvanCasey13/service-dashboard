@@ -36,6 +36,14 @@
                             </p>
                         </div>
                         <div class="col-md-6 text-end">
+                            {% if deployment_data and deployment_data.commit_prod %}
+                            <button class="btn btn-sm btn-warning" id="revertMrBtn"
+                                    data-deployment-name="{{ process.deployment_name }}"
+                                    data-current-commit="{{ process.commit_range.to_commit }}"
+                                    data-revert-to-commit="{{ process.commit_range.from_commit }}">
+                                <i class="bi bi-arrow-counterclockwise me-1"></i>Revert Release
+                            </button>
+                            {% endif %}
                             <button class="btn btn-sm btn-info" id="slack-message-btn">
                                 <i class="bi bi-chat-left-text me-1"></i>Generate Slack Message
                             </button>
@@ -836,5 +844,9 @@ if (checkMrStatusBtn) {
 
 <!-- Load deployment MR creation script -->
 <script type="application/javascript" src="{{ url_for('static', filename='js/pages/deployment_mr.js') }}"></script>
+
+<!-- Revert MR modal and script -->
+{% include 'modals/revert_mr_modal.html' %}
+<script type="application/javascript" src="{{ url_for('static', filename='js/pages/revert_mr.js') }}"></script>
 
 {% endblock %}

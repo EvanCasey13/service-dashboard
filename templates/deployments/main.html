@@ -135,9 +135,13 @@
     </div>
 </div>
 
+<!-- Revert MR Modal -->
+{% include 'modals/revert_mr_modal.html' %}
+
 <!-- JavaScript -->
     <script src="{{ url_for('static', filename='js/components/datatables/main_row.js') }}"></script>
     <script type="application/javascript" src="{{ url_for('static', filename='js/components/buttons/update-buttons.js') }}"></script>
     <script type="application/javascript" src="{{ url_for('static', filename='js/components/datatables/detail_row.js') }}"></script>
     <script type="application/javascript" src="{{ url_for('static', filename='js/pages/deployments_ignore_list.js') }}"></script>
+    <script type="application/javascript" src="{{ url_for('static', filename='js/pages/revert_mr.js') }}"></script>
 {% endblock %}
