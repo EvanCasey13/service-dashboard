@@ -44,6 +44,7 @@ Code that's specific to individual pages or page groups.
 - **`personal_stats.js`** - Personal statistics page
 - **`all_data_stats.js`** - All data statistics page
 - **`deployment_mr.js`** - Deployment MR functionality
+- **`revert_mr.js`** - Production revert MR functionality (mirrors `deployment_mr.js` for revert flow)
 - **`release_notes_select.js`** - Release notes selection page
 
 ### `/utils/` - Utility Functions

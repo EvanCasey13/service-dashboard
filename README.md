@@ -41,6 +41,10 @@ The app checks links from the 'Overview' page, identifies matches and downloads 
 * **Release Notes Generation**: Select PR scope and generate formatted release notes
 * **JIRA Ticket Creation**: Automatically create JIRA tickets for releases
 * **App-interface MR Creation**: Create merge requests to update deployment configurations
+* **Production Revert**: Create app-interface MRs to revert production to a previous commit
+  - Available from both the release process detail page and the deployments page
+  - On the release process page, the revert target commit is pre-filled from the release's original commit
+  - On the deployments page, you manually enter the commit SHA to revert to
 * **Google Drive Integration**: Automatically create Google Docs with release notes
   - Each deployment has its own folder in `services_links.yml`
   - Optional: Setup in [OAUTH_SETUP.md](OAUTH_SETUP.md)
