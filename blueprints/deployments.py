@@ -394,6 +394,142 @@ def add_jira_ticket_ref_to_pull_request(pr):
     return pr
 
 
+@deployments_bp.route("/jira_tickets/<deployment_name>", methods=["GET"])
+def get_deployment_jira_tickets(deployment_name):
+    """Get Jira ticket details from PRs waiting for prod release."""
+    from flask import jsonify
+
+    deployments = load_json_data(config.DEPLOYMENTS_FILE)
+    deployment = deployments.get(deployment_name)
+    if not deployment:
+        return jsonify({"success": False, "error": "Deployment not found"}), 404
+
+    ticket_ids = _extract_jira_tickets_from_pulls(deployment)
+    source = "deployment"
+
+    if not ticket_ids:
+        ticket_ids, source = _fallback_tickets_from_google_doc(deployment_name)
+
+    if not ticket_ids:
+        return jsonify({"success": True, "tickets": [], "source": source})
+
+    try:
+        jira = JiraAPI()
+    except Exception as e:
+        return jsonify({"success": False, "error": f"Could not connect to Jira: {e}"}), 500
+
+    tickets = []
+    for tid in sorted(ticket_ids):
+        try:
+            ticket_data = jira.get_jira_ticket(tid)
+            tickets.append(ticket_data)
+        except Exception as e:
+            tickets.append({"ticket_id": tid, "title": "Unknown", "status": "Unknown", "error": str(e)})
+
+    return jsonify({"success": True, "tickets": tickets, "source": source})
+
+
+@deployments_bp.route("/close_jira_tickets/<deployment_name>", methods=["POST"])
+def close_deployment_jira_tickets(deployment_name):
+    """Close selected Jira tickets from PRs waiting for prod release."""
+    from flask import jsonify, request
+
+    deployments = load_json_data(config.DEPLOYMENTS_FILE)
+    deployment = deployments.get(deployment_name)
+    if not deployment:
+        return jsonify({"success": False, "error": "Deployment not found"}), 404
+
+    data = request.get_json() or {}
+    selected_ids = data.get("ticket_ids")
+
+    if not selected_ids:
+        all_ids = _extract_jira_tickets_from_pulls(deployment)
+        selected_ids = sorted(all_ids)
+
+    if not selected_ids:
+        return jsonify({"success": False, "error": "No Jira tickets to close"}), 400
+
+    try:
+        close_jira = JiraAPI()
+    except Exception as e:
+        return jsonify({"success": False, "error": f"Could not connect to Jira: {e}"}), 500
+
+    closed = []
+    failed = []
+    for ticket_id in selected_ids:
+        result = close_jira.close_jira_ticket(ticket_id)
+        if result.get("success"):
+            closed.append(ticket_id)
+        else:
+            failed.append({"ticket_id": ticket_id, "error": result.get("error")})
+
+    return jsonify({"success": True, "closed": closed, "failed": failed})
+
+
+def _extract_jira_tickets_from_pulls(deployment):
+    """Extract unique Jira ticket IDs from all of a deployment's PR lists."""
+    ticket_ids = set()
+    jira_project_id = config.JIRA_PROJECT
+    pattern = f"{jira_project_id}-\\d+"
+
+    for pull_list in ("prod_stage_pulls", "prod_default_pulls", "stage_default_pulls"):
+        for pr in deployment.get(pull_list, []):
+            for ticket in pr.get("jira_tickets", []):
+                tid = ticket.get("ticket_id")
+                if tid:
+                    ticket_ids.add(tid)
+            for field in (pr.get("title", ""), pr.get("description", "") or ""):
+                for match in re.findall(pattern, field):
+                    ticket_ids.add(match)
+
+    return ticket_ids
+
+
+def _fallback_tickets_from_google_doc(deployment_name):
+    """Try to extract Jira tickets from the latest Google Doc for a deployment."""
+    try:
+        from blueprints.release_notes import (
+            get_release_notes_from_deployment,
+            extract_google_drive_folder_id,
+        )
+        from services.google_drive_service import GoogleDriveService
+
+        notes = get_release_notes_from_deployment(deployment_name)
+        if not notes:
+            return [], "deployment"
+
+        folder_id = notes.get("google_drive_folder_id")
+        if not folder_id:
+            release_notes_link = notes.get("release_notes_link", "")
+            folder_id = extract_google_drive_folder_id(release_notes_link)
+
+        if not folder_id:
+            return [], "deployment"
+
+        gdrive = GoogleDriveService()
+        if not gdrive.is_available():
+            return [], "deployment"
+
+        latest_doc = gdrive.get_latest_release_doc(folder_id)
+        if not latest_doc:
+            return [], "deployment"
+
+        ticket_ids = gdrive.extract_jira_tickets_from_doc(
+            latest_doc["document_id"], config.JIRA_PROJECT
+        )
+        if ticket_ids:
+            logger.info(
+                f"Fallback: found {len(ticket_ids)} tickets from Google Doc "
+                f"'{latest_doc['title']}' for {deployment_name}"
+            )
+            return ticket_ids, "google_doc"
+
+        return [], "deployment"
+    except Exception as e:
+        logger.warning(f"Google Doc fallback failed for {deployment_name}: {e}")
+        return [], "deployment"
+
+
 @deployments_bp.route("/ignore_list", methods=["GET"])
 def get_ignore_list():
     """Get the current deployment ignore list."""

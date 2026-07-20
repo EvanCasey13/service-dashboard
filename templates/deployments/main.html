@@ -138,10 +138,48 @@
 <!-- Revert MR Modal -->
 {% include 'modals/revert_mr_modal.html' %}
 
+<!-- Close Jira Tickets Modal -->
+<div class="modal fade" id="closeJiraModal" tabindex="-1" aria-labelledby="closeJiraModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="closeJiraModalLabel">Close Jira Tickets</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="jiraTicketsLoading" class="text-center py-3">
+                    <span class="spinner-border spinner-border-sm me-1"></span> Loading tickets...
+                </div>
+                <div id="jiraTicketsEmpty" class="text-muted py-3" style="display:none;">
+                    No Jira tickets found for this deployment.
+                </div>
+                <div id="jiraTicketsSource" class="mb-2" style="display:none;"></div>
+                <div id="jiraTicketsList" style="display:none;">
+                    <div class="mb-2">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="jiraSelectAll" checked>
+                            <label class="form-check-label fw-bold" for="jiraSelectAll">Select All</label>
+                        </div>
+                    </div>
+                    <hr class="my-2">
+                    <div id="jiraTicketsCheckboxes"></div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-success" id="closeSelectedJiraBtn" disabled>
+                    <i class="bi bi-check2-square me-1"></i>Close Selected
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- JavaScript -->
     <script src="{{ url_for('static', filename='js/components/datatables/main_row.js') }}"></script>
     <script type="application/javascript" src="{{ url_for('static', filename='js/components/buttons/update-buttons.js') }}"></script>
     <script type="application/javascript" src="{{ url_for('static', filename='js/components/datatables/detail_row.js') }}"></script>
     <script type="application/javascript" src="{{ url_for('static', filename='js/pages/deployments_ignore_list.js') }}"></script>
     <script type="application/javascript" src="{{ url_for('static', filename='js/pages/revert_mr.js') }}"></script>
+    <script type="application/javascript" src="{{ url_for('static', filename='js/pages/close_jira.js') }}"></script>
 {% endblock %}

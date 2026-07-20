@@ -10,8 +10,11 @@ Handles routes for:
 """
 
 import logging
+from datetime import datetime
+
 from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash
 
+import config
 from services.release_process_service import release_process_service
 
 logger = logging.getLogger(__name__)
@@ -271,6 +274,7 @@ def check_process_mr_status(process_id):
             # Update step status based on progress
             if status_details.get("mr_merged"):
                 new_status = "completed"
+                _auto_close_jira_tickets(process_id, process)
             elif status_details.get("mr_created"):
                 new_status = "in_progress"
             elif status_details.get("branch_created"):
@@ -328,6 +332,218 @@ def check_process_mr_status(process_id):
         logger.error(
             f"Error checking MR status for process {process_id}: {e}", exc_info=True
         )
+        return jsonify({"success": False, "error": "Internal server error"}), 500
+
+
+def _get_release_jira_tickets(process):
+    """Extract Jira ticket IDs from the PRs in a release process."""
+    import re
+    from blueprints.release_notes import get_deployment_data
+
+    deployment_name = process.get("deployment_name")
+    to_commit = process.get("commit_range", {}).get("to_commit")
+    if not deployment_name:
+        return []
+
+    deployment_data = get_deployment_data(deployment_name)
+    if not deployment_data:
+        return []
+
+    prod_stage_pulls = deployment_data.get("prod_stage_pulls", [])
+    prod_stage_pulls.sort(key=lambda pr: pr.get("merged_at", ""))
+
+    # Filter PRs up to the to_commit
+    prs_in_scope = []
+    for pr in prod_stage_pulls:
+        prs_in_scope.append(pr)
+        if pr.get("merge_commit_sha") == to_commit:
+            break
+
+    # Collect unique ticket IDs from PRs
+    ticket_ids = set()
+    jira_project_id = config.JIRA_PROJECT
+    pattern = f"{jira_project_id}-\\d+"
+
+    for pr in prs_in_scope:
+        # From pre-extracted jira_tickets
+        for ticket in pr.get("jira_tickets", []):
+            tid = ticket.get("ticket_id")
+            if tid:
+                ticket_ids.add(tid)
+        # Also scan title/description in case jira_tickets wasn't populated
+        for field in (pr.get("title", ""), pr.get("description", "") or ""):
+            for match in re.findall(pattern, field):
+                ticket_ids.add(match)
+
+    if not ticket_ids:
+        ticket_ids = _fallback_tickets_from_google_doc_for_process(process)
+
+    return sorted(ticket_ids)
+
+
+def _fallback_tickets_from_google_doc_for_process(process):
+    """Try to extract Jira tickets from the latest Google Doc for a release process."""
+    try:
+        from blueprints.release_notes import (
+            get_release_notes_from_deployment,
+            extract_google_drive_folder_id,
+        )
+        from services.google_drive_service import GoogleDriveService
+
+        deployment_name = process.get("deployment_name")
+        if not deployment_name:
+            return set()
+
+        notes = get_release_notes_from_deployment(deployment_name)
+        if not notes:
+            return set()
+
+        folder_id = notes.get("google_drive_folder_id")
+        if not folder_id:
+            release_notes_link = notes.get("release_notes_link", "")
+            folder_id = extract_google_drive_folder_id(release_notes_link)
+
+        if not folder_id:
+            return set()
+
+        gdrive = GoogleDriveService()
+        if not gdrive.is_available():
+            return set()
+
+        latest_doc = gdrive.get_latest_release_doc(folder_id)
+        if not latest_doc:
+            return set()
+
+        ticket_ids = gdrive.extract_jira_tickets_from_doc(
+            latest_doc["document_id"], config.JIRA_PROJECT
+        )
+        if ticket_ids:
+            logger.info(
+                f"Fallback: found {len(ticket_ids)} tickets from Google Doc "
+                f"'{latest_doc['title']}' for process deployment {deployment_name}"
+            )
+            return set(ticket_ids)
+
+        return set()
+    except Exception as e:
+        logger.warning(f"Google Doc fallback failed for release process: {e}")
+        return set()
+
+
+def _auto_close_jira_tickets(process_id, process):
+    """Auto-close Jira tickets referenced in the PRs of a release process."""
+    if process.get("metadata", {}).get("jira_tickets_closed"):
+        return
+
+    ticket_ids = _get_release_jira_tickets(process)
+    if not ticket_ids:
+        logger.info(f"No Jira tickets found in PRs for process {process_id}")
+        return
+
+    try:
+        from services.jira import JiraAPI
+
+        jira_api = JiraAPI()
+        closed = []
+        failed = []
+        for ticket_id in ticket_ids:
+            result = jira_api.close_jira_ticket(ticket_id)
+            if result.get("success"):
+                closed.append(ticket_id)
+            else:
+                failed.append({"ticket_id": ticket_id, "error": result.get("error")})
+
+        # Store results in process metadata
+        proc = release_process_service.get_process(process_id)
+        if proc:
+            if "metadata" not in proc:
+                proc["metadata"] = {}
+            proc["metadata"]["jira_tickets_closed"] = True
+            proc["metadata"]["jira_tickets_closed_at"] = datetime.now().isoformat()
+            proc["metadata"]["jira_tickets_closed_ids"] = closed
+            proc["metadata"]["jira_tickets_close_failed"] = failed
+            release_process_service._save_process(proc)
+
+        logger.info(
+            f"Auto-closed {len(closed)} Jira tickets for process {process_id}, "
+            f"{len(failed)} failed"
+        )
+    except Exception as e:
+        logger.warning(f"Failed to auto-close Jira tickets for process {process_id}: {e}")
+
+
+@release_process_bp.route("/<process_id>/close_jira_tickets", methods=["POST"])
+def close_jira_tickets(process_id):
+    """Close all Jira tickets referenced in the PRs of a release process."""
+    try:
+        process = release_process_service.get_process(process_id)
+        if not process:
+            return jsonify({"success": False, "error": "Process not found"}), 404
+
+        if process.get("metadata", {}).get("jira_tickets_closed"):
+            return jsonify({
+                "success": True,
+                "message": "Jira tickets already closed",
+                "closed_ids": process["metadata"].get("jira_tickets_closed_ids", []),
+            })
+
+        ticket_ids = _get_release_jira_tickets(process)
+        if not ticket_ids:
+            return jsonify({"success": False, "error": "No Jira tickets found in the PRs for this release"}), 400
+
+        from services.jira import JiraAPI
+
+        jira_api = JiraAPI()
+        closed = []
+        failed = []
+        for ticket_id in ticket_ids:
+            result = jira_api.close_jira_ticket(ticket_id)
+            if result.get("success"):
+                closed.append(ticket_id)
+            else:
+                failed.append({"ticket_id": ticket_id, "error": result.get("error")})
+
+        # Store results in process metadata
+        if "metadata" not in process:
+            process["metadata"] = {}
+        process["metadata"]["jira_tickets_closed"] = True
+        process["metadata"]["jira_tickets_closed_at"] = datetime.now().isoformat()
+        process["metadata"]["jira_tickets_closed_ids"] = closed
+        process["metadata"]["jira_tickets_close_failed"] = failed
+        release_process_service._save_process(process)
+
+        return jsonify({
+            "success": True,
+            "closed": closed,
+            "failed": failed,
+        })
+
+    except Exception as e:
+        logger.error(f"Error closing Jira tickets for process {process_id}: {e}")
+        return jsonify({"success": False, "error": "Internal server error"}), 500
+
+
+@release_process_bp.route("/<process_id>/release_jira_tickets", methods=["GET"])
+def get_release_jira_tickets(process_id):
+    """Get the list of Jira tickets referenced in the PRs of a release process."""
+    try:
+        process = release_process_service.get_process(process_id)
+        if not process:
+            return jsonify({"success": False, "error": "Process not found"}), 404
+
+        ticket_ids = _get_release_jira_tickets(process)
+        already_closed = process.get("metadata", {}).get("jira_tickets_closed", False)
+        closed_ids = process.get("metadata", {}).get("jira_tickets_closed_ids", [])
+
+        return jsonify({
+            "success": True,
+            "ticket_ids": ticket_ids,
+            "already_closed": already_closed,
+            "closed_ids": closed_ids,
+        })
+
+    except Exception as e:
+        logger.error(f"Error getting Jira tickets for process {process_id}: {e}")
         return jsonify({"success": False, "error": "Internal server error"}), 500
 
 

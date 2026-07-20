@@ -2,6 +2,7 @@
 
 import logging
 import os
+import re
 from datetime import datetime
 
 from google.oauth2.credentials import Credentials
@@ -753,6 +754,102 @@ class GoogleDriveService:
         except Exception as e:
             logger.error(f"Error adding content to document: {e}")
             # Don't raise here - document is created, just content might be incomplete
+
+    def get_latest_release_doc(self, folder_id: str) -> dict | None:
+        """
+        Get the most recently created Google Doc from a Drive folder.
+
+        Args:
+            folder_id: Google Drive folder ID to search in
+
+        Returns:
+            dict with document_id, title, created_time, or None if no docs found
+        """
+        if not self.is_available():
+            return None
+
+        try:
+            results = (
+                self.drive_service.files()
+                .list(
+                    q=f"'{folder_id}' in parents and mimeType='application/vnd.google-apps.document' and trashed=false",
+                    orderBy="createdTime desc",
+                    pageSize=1,
+                    fields="files(id, name, createdTime)",
+                    supportsAllDrives=True,
+                    includeItemsFromAllDrives=True,
+                )
+                .execute()
+            )
+
+            files = results.get("files", [])
+            if not files:
+                logger.info(f"No Google Docs found in folder {folder_id}")
+                return None
+
+            doc = files[0]
+            logger.info(f"Found latest release doc: {doc['name']} ({doc['id']})")
+            return {
+                "document_id": doc["id"],
+                "title": doc["name"],
+                "created_time": doc.get("createdTime"),
+            }
+
+        except HttpError as error:
+            logger.error(f"Error listing files in folder {folder_id}: {error}")
+            return None
+        except Exception as e:
+            logger.error(f"Unexpected error listing files: {e}")
+            return None
+
+    def extract_jira_tickets_from_doc(self, doc_id: str, jira_project: str) -> list[str]:
+        """
+        Extract JIRA ticket IDs from a Google Doc's text content.
+
+        Args:
+            doc_id: Google Doc document ID
+            jira_project: JIRA project key (e.g. "RHCLOUD")
+
+        Returns:
+            Sorted list of unique ticket IDs found in the document
+        """
+        if not self.is_available():
+            return []
+
+        try:
+            doc = self.docs_service.documents().get(documentId=doc_id).execute()
+            body = doc.get("body", {})
+
+            text_parts = []
+            for element in body.get("content", []):
+                self._extract_text_from_element(element, text_parts)
+
+            full_text = "".join(text_parts)
+            pattern = rf"{re.escape(jira_project)}-\d+"
+            ticket_ids = set(re.findall(pattern, full_text))
+
+            logger.info(f"Extracted {len(ticket_ids)} JIRA tickets from doc {doc_id}")
+            return sorted(ticket_ids)
+
+        except HttpError as error:
+            logger.error(f"Error reading Google Doc {doc_id}: {error}")
+            return []
+        except Exception as e:
+            logger.error(f"Unexpected error reading doc: {e}")
+            return []
+
+    def _extract_text_from_element(self, element: dict, text_parts: list):
+        """Recursively extract text from a Google Docs structural element."""
+        if "paragraph" in element:
+            for elem in element["paragraph"].get("elements", []):
+                text_run = elem.get("textRun")
+                if text_run:
+                    text_parts.append(text_run.get("content", ""))
+        if "table" in element:
+            for row in element["table"].get("tableRows", []):
+                for cell in row.get("tableCells", []):
+                    for content in cell.get("content", []):
+                        self._extract_text_from_element(content, text_parts)
 
     def get_folder_info(self, folder_id: str) -> dict:
         """

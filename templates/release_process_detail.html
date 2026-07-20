@@ -140,6 +140,17 @@
                             <i class="bi bi-ticket me-1"></i>View JIRA Ticket
                         </a>
                         {% endif %}
+
+                        {% if process.metadata and process.metadata.jira_tickets_closed %}
+                        <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>PR Jira Tickets Closed ({{ process.metadata.jira_tickets_closed_ids|length }})</span>
+                        {% if process.metadata.jira_tickets_close_failed %}
+                        <span class="badge bg-warning text-dark ms-1">{{ process.metadata.jira_tickets_close_failed|length }} failed</span>
+                        {% endif %}
+                        {% else %}
+                        <button class="btn btn-sm btn-outline-success me-2" id="close-jira-tickets-btn">
+                            <i class="bi bi-check2-square me-1"></i>Close PR Jira Tickets
+                        </button>
+                        {% endif %}
                         <button class="btn btn-outline-warning btn-sm mark-step-incomplete" data-step="jira_ticket">
                             <i class="bi bi-x-circle me-1"></i>Unmark as Complete
                         </button>
@@ -756,6 +767,56 @@ function setupJiraTicketCreation(buttonId) {
 // Setup both JIRA creation buttons (one when pending, one when completed)
 setupJiraTicketCreation('create-jira-ticket-btn');
 setupJiraTicketCreation('create-jira-ticket-btn-alt');
+
+// Close PR Jira Tickets
+const closeJiraTicketsBtn = document.getElementById('close-jira-tickets-btn');
+if (closeJiraTicketsBtn) {
+    closeJiraTicketsBtn.addEventListener('click', function() {
+        const btn = this;
+
+        // First, fetch the list of tickets to show in confirmation
+        fetch(`/release_processes/${processId}/release_jira_tickets`)
+        .then(response => response.json())
+        .then(data => {
+            if (!data.success || !data.ticket_ids.length) {
+                alert('No Jira tickets found in the PRs for this release.');
+                return;
+            }
+
+            const ticketList = data.ticket_ids.join(', ');
+            if (!confirm(`Close ${data.ticket_ids.length} Jira ticket(s)?\n\n${ticketList}`)) return;
+
+            btn.disabled = true;
+            const originalContent = btn.innerHTML;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Closing...';
+
+            fetch(`/release_processes/${processId}/close_jira_tickets`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            })
+            .then(response => response.json())
+            .then(result => {
+                if (result.success) {
+                    window.location.reload();
+                } else {
+                    alert('Error closing Jira tickets: ' + (result.error || 'Unknown error'));
+                    btn.disabled = false;
+                    btn.innerHTML = originalContent;
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error closing Jira tickets');
+                btn.disabled = false;
+                btn.innerHTML = originalContent;
+            });
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Error fetching Jira tickets');
+        });
+    });
+}
 
 // Function to show status message next to button
 function showMrStatusMessage(message, isError = false) {
