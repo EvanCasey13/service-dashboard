@@ -28,10 +28,12 @@ class JiraAPI:
         assigned_user = (
             issue.fields.assignee.displayName if issue.fields.assignee else "Unassigned"
         )
+        status = str(issue.fields.status)
         return {
             "ticket_id": ticket_id,
             "title": title,
             "assigned_user": assigned_user,
+            "status": status,
         }
 
     def create_jira_ticket(self, options):
@@ -43,6 +45,17 @@ class JiraAPI:
             "description": new_issue.fields.description,
             "url": f"{JIRA_SERVER}/browse/{new_issue.key}",
         }
+
+    def close_jira_ticket(self, ticket_id):
+        """Close a JIRA ticket by transitioning it to Done."""
+        try:
+            transition_name = config.JIRA_CLOSE_TRANSITION_NAME
+            self.jira_api.transition_issue(ticket_id, transition_name)
+            logger.info(f"JIRA ticket {ticket_id} transitioned to '{transition_name}'")
+            return {"success": True, "ticket_id": ticket_id}
+        except Exception as e:
+            logger.error(f"Failed to close JIRA ticket {ticket_id}: {e}")
+            return {"success": False, "ticket_id": ticket_id, "error": str(e)}
 
     def get_security_levels(self, project_key):
         """Get available security levels for a project."""
