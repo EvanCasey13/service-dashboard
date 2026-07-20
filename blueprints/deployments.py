@@ -405,8 +405,13 @@ def get_deployment_jira_tickets(deployment_name):
         return jsonify({"success": False, "error": "Deployment not found"}), 404
 
     ticket_ids = _extract_jira_tickets_from_pulls(deployment)
+    source = "deployment"
+
     if not ticket_ids:
-        return jsonify({"success": True, "tickets": []})
+        ticket_ids, source = _fallback_tickets_from_google_doc(deployment_name)
+
+    if not ticket_ids:
+        return jsonify({"success": True, "tickets": [], "source": source})
 
     try:
         jira = JiraAPI()
@@ -421,7 +426,7 @@ def get_deployment_jira_tickets(deployment_name):
         except Exception as e:
             tickets.append({"ticket_id": tid, "title": "Unknown", "status": "Unknown", "error": str(e)})
 
-    return jsonify({"success": True, "tickets": tickets})
+    return jsonify({"success": True, "tickets": tickets, "source": source})
 
 
 @deployments_bp.route("/close_jira_tickets/<deployment_name>", methods=["POST"])
@@ -478,6 +483,51 @@ def _extract_jira_tickets_from_pulls(deployment):
                     ticket_ids.add(match)
 
     return ticket_ids
+
+
+def _fallback_tickets_from_google_doc(deployment_name):
+    """Try to extract Jira tickets from the latest Google Doc for a deployment."""
+    try:
+        from blueprints.release_notes import (
+            get_release_notes_from_deployment,
+            extract_google_drive_folder_id,
+        )
+        from services.google_drive_service import GoogleDriveService
+
+        notes = get_release_notes_from_deployment(deployment_name)
+        if not notes:
+            return [], "deployment"
+
+        folder_id = notes.get("google_drive_folder_id")
+        if not folder_id:
+            release_notes_link = notes.get("release_notes_link", "")
+            folder_id = extract_google_drive_folder_id(release_notes_link)
+
+        if not folder_id:
+            return [], "deployment"
+
+        gdrive = GoogleDriveService()
+        if not gdrive.is_available():
+            return [], "deployment"
+
+        latest_doc = gdrive.get_latest_release_doc(folder_id)
+        if not latest_doc:
+            return [], "deployment"
+
+        ticket_ids = gdrive.extract_jira_tickets_from_doc(
+            latest_doc["document_id"], config.JIRA_PROJECT
+        )
+        if ticket_ids:
+            logger.info(
+                f"Fallback: found {len(ticket_ids)} tickets from Google Doc "
+                f"'{latest_doc['title']}' for {deployment_name}"
+            )
+            return ticket_ids, "google_doc"
+
+        return [], "deployment"
+    except Exception as e:
+        logger.warning(f"Google Doc fallback failed for {deployment_name}: {e}")
+        return [], "deployment"
 
 
 @deployments_bp.route("/ignore_list", methods=["GET"])

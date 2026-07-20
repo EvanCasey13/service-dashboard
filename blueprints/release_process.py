@@ -375,7 +375,59 @@ def _get_release_jira_tickets(process):
             for match in re.findall(pattern, field):
                 ticket_ids.add(match)
 
+    if not ticket_ids:
+        ticket_ids = _fallback_tickets_from_google_doc_for_process(process)
+
     return sorted(ticket_ids)
+
+
+def _fallback_tickets_from_google_doc_for_process(process):
+    """Try to extract Jira tickets from the latest Google Doc for a release process."""
+    try:
+        from blueprints.release_notes import (
+            get_release_notes_from_deployment,
+            extract_google_drive_folder_id,
+        )
+        from services.google_drive_service import GoogleDriveService
+
+        deployment_name = process.get("deployment_name")
+        if not deployment_name:
+            return set()
+
+        notes = get_release_notes_from_deployment(deployment_name)
+        if not notes:
+            return set()
+
+        folder_id = notes.get("google_drive_folder_id")
+        if not folder_id:
+            release_notes_link = notes.get("release_notes_link", "")
+            folder_id = extract_google_drive_folder_id(release_notes_link)
+
+        if not folder_id:
+            return set()
+
+        gdrive = GoogleDriveService()
+        if not gdrive.is_available():
+            return set()
+
+        latest_doc = gdrive.get_latest_release_doc(folder_id)
+        if not latest_doc:
+            return set()
+
+        ticket_ids = gdrive.extract_jira_tickets_from_doc(
+            latest_doc["document_id"], config.JIRA_PROJECT
+        )
+        if ticket_ids:
+            logger.info(
+                f"Fallback: found {len(ticket_ids)} tickets from Google Doc "
+                f"'{latest_doc['title']}' for process deployment {deployment_name}"
+            )
+            return set(ticket_ids)
+
+        return set()
+    except Exception as e:
+        logger.warning(f"Google Doc fallback failed for release process: {e}")
+        return set()
 
 
 def _auto_close_jira_tickets(process_id, process):

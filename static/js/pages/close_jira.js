@@ -50,6 +50,9 @@ document.addEventListener('DOMContentLoaded', function() {
         closeBtn.disabled = true;
         selectAllEl.checked = true;
 
+        const sourceEl = document.getElementById('jiraTicketsSource');
+        if (sourceEl) sourceEl.style.display = 'none';
+
         modal.show();
 
         fetch(`/deployments/jira_tickets/${encodeURIComponent(activeDeploymentName)}`)
@@ -62,6 +65,18 @@ document.addEventListener('DOMContentLoaded', function() {
             }
 
             listEl.style.display = '';
+
+            // Show source indicator if tickets came from Google Doc
+            const sourceIndicator = document.getElementById('jiraTicketsSource');
+            if (sourceIndicator) {
+                if (data.source === 'google_doc') {
+                    sourceIndicator.innerHTML = '<span class="badge bg-info text-dark"><i class="bi bi-file-earmark-text me-1"></i>Tickets from latest release doc</span>';
+                    sourceIndicator.style.display = '';
+                } else {
+                    sourceIndicator.style.display = 'none';
+                }
+            }
+
             let html = '';
             data.tickets.forEach((t, i) => {
                 const isClosed = ['closed', 'done', 'resolved'].includes((t.status || '').toLowerCase());
