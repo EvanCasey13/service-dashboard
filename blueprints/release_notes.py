@@ -359,7 +359,7 @@ def check_mr_status(depl_name):
             ), 503
 
         current_user = gitlab_api.gitlab_api.user
-        user_fork_path = f"{current_user.username}/app-interface"
+        user_fork_path = f"{current_user.username}/app_interface"
         main_repo_path = "service/app-interface"
 
         status_details = {
@@ -1027,7 +1027,7 @@ def create_gitlab_deployment_mr(
         )
 
         # Get both user's fork and main repository for fork-to-upstream MR
-        user_fork_path = f"{current_user.username}/app-interface"
+        user_fork_path = f"{current_user.username}/app_interface"
         main_repo_path = "service/app-interface"
 
         # Get user's fork (where we'll create the branch)
