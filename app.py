@@ -6,6 +6,7 @@ import config
 from blueprints import (
     api_bp,
     backups_bp,
+    bot_dependency_consolidator_bp,
     deployments_bp,
     enhance_data_bp,
     get_default_branch_commit_style,
@@ -37,6 +38,7 @@ app.config.from_object("config")
 # Blueprint registration
 app.register_blueprint(api_bp, url_prefix="/api")
 app.register_blueprint(backups_bp)
+app.register_blueprint(bot_dependency_consolidator_bp)
 app.register_blueprint(enhance_data_bp)
 app.register_blueprint(overview_bp)
 app.register_blueprint(personal_stats_bp)

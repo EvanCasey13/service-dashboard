@@ -1,5 +1,6 @@
 from .api import api_bp
 from .backups import backups_bp
+from .bot_dependency_consolidator import bot_dependency_consolidator_bp
 from .deployments import (
     deployments_bp,
     get_default_branch_commit_style,
@@ -17,6 +18,7 @@ from .settings import settings_bp
 __all__ = [
     "api_bp",
     "backups_bp",
+    "bot_dependency_consolidator_bp",
     "deployments_bp",
     "enhance_data_bp",
     "get_services_links",
